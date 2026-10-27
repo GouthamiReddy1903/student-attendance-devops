@@ -5,8 +5,19 @@ async function runTest() {
     let driver;
 
     try {
-        driver = await new Builder().forBrowser('chrome').build();
+        
+const seleniumUrl = process.env.SELENIUM_REMOTE_URL;
 
+if (seleniumUrl) {
+    driver = await new Builder()
+        .usingServer(seleniumUrl)
+        .forBrowser('chrome')
+        .build();
+} else {
+    driver = await new Builder()
+        .forBrowser('chrome')
+        .build();
+}
         await driver.get('http://localhost:3001');
 
         await driver.wait(until.elementLocated(By.css('body')), 10000);
