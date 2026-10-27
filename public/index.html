@@ -1,0 +1,177 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Attendance Management System</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+        }
+
+        h1, h2 {
+            color: #1e3a8a;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+
+        input {
+            width: 100%;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background: #dbeafe;
+        }
+
+        #message {
+            color: #166534;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Student Attendance Management System</h1>
+        <p>Manage students and prepare attendance records.</p>
+        
+<nav style="margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap;">
+    <a href="/" style="background:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">
+        Student Management
+    </a>
+
+    <a href="/attendance.html" style="background:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">
+        Daily Attendance
+    </a>
+
+    <a href="/monthly-report.html" style="background:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">
+        Monthly Report
+    </a>
+</nav>
+
+
+        <h2>Add Student</h2>
+
+        <form id="studentForm">
+            <input id="rollNo" placeholder="Enter Roll Number" required>
+            <input id="studentName" placeholder="Enter Student Name" required>
+            <input id="department" placeholder="Enter Department" required>
+            <button type="submit">Add Student</button>
+        </form>
+
+        <p id="message"></p>
+
+        <h2>Student List</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Roll Number</th>
+                    <th>Student Name</th>
+                    <th>Department</th>
+                </tr>
+            </thead>
+            <tbody id="studentList"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const form = document.getElementById("studentForm");
+        const message = document.getElementById("message");
+        const studentList = document.getElementById("studentList");
+
+        async function loadStudents() {
+            const response = await fetch("/api/students");
+            const students = await response.json();
+
+            studentList.replaceChildren();
+
+            students.forEach(student => {
+                const row = document.createElement("tr");
+
+                [student.rollNo, student.name, student.department]
+                    .forEach(value => {
+                        const cell = document.createElement("td");
+                        cell.textContent = value;
+                        row.appendChild(cell);
+                    });
+
+                studentList.appendChild(row);
+            });
+        }
+
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+
+            const student = {
+                rollNo: document.getElementById("rollNo").value.trim(),
+                name: document.getElementById("studentName").value.trim(),
+                department: document.getElementById("department").value.trim()
+            };
+
+            try {
+                const response = await fetch("/api/students", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(student)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || "Could not add student");
+                }
+
+                message.textContent = result.message;
+                form.reset();
+                await loadStudents();
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        });
+
+        loadStudents().catch(error => {
+            message.textContent = "Unable to load students. Please refresh the page.";
+            console.error(error);
+        });
+    </script>
+</body>
+</html>

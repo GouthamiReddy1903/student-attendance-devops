@@ -1,0 +1,341 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Student Attendance</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 25px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 25px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            color: #1e3a8a;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        input, button {
+            padding: 10px 14px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .secondary {
+            background: #475569;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            min-width: 900px;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #dbeafe;
+            color: #1e3a8a;
+        }
+
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        select {
+            padding: 7px;
+            border-radius: 4px;
+            border: 1px solid #cbd5e1;
+        }
+
+        #message {
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Daily Student Attendance</h1>
+        <p>Mark attendance for all seven periods.</p>
+
+        <div class="controls">
+            <label for="date"><strong>Select Date:</strong></label>
+            <input type="date" id="date">
+
+            <br>
+
+            <button type="button" id="presentAll">
+                Mark All Present
+            </button>
+
+            <button type="button" id="absentAll">
+                Mark All Absent
+            </button>
+
+            <button type="button" id="loadButton" class="secondary">
+                Load Attendance
+            </button>
+
+            <button type="button" id="saveButton">
+                Save Attendance
+            </button>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Period 1</th>
+                        <th>Period 2</th>
+                        <th>Period 3</th>
+                        <th>Period 4</th>
+                        <th>Period 5</th>
+                        <th>Period 6</th>
+                        <th>Period 7</th>
+                    </tr>
+                </thead>
+
+                <tbody id="attendanceBody"></tbody>
+            </table>
+        </div>
+
+        <p id="message" role="status"></p>
+
+        <a class="back-link" href="/">
+            Back to Student Management
+        </a>
+    </div>
+
+    <script>
+        const dateInput = document.getElementById("date");
+        const attendanceBody = document.getElementById("attendanceBody");
+        const message = document.getElementById("message");
+
+        // Set today's date using local time.
+        const today = new Date();
+
+        dateInput.value = [
+            today.getFullYear(),
+            String(today.getMonth() + 1).padStart(2, "0"),
+            String(today.getDate()).padStart(2, "0")
+        ].join("-");
+
+        async function loadAttendance() {
+            message.textContent = "Loading attendance...";
+
+            try {
+                const date = dateInput.value;
+
+                if (!date) {
+                    throw new Error("Please select a date.");
+                }
+
+                const [studentResponse, attendanceResponse] =
+                    await Promise.all([
+                        fetch("/api/students"),
+                        fetch(
+                            "/api/attendance?date=" +
+                            encodeURIComponent(date)
+                        )
+                    ]);
+
+                if (!studentResponse.ok) {
+                    throw new Error("Could not load students.");
+                }
+
+                if (!attendanceResponse.ok) {
+                    throw new Error("Could not load attendance.");
+                }
+
+                const students = await studentResponse.json();
+                const records = await attendanceResponse.json();
+
+                attendanceBody.replaceChildren();
+
+                students.forEach(student => {
+                    const row = document.createElement("tr");
+
+                    const rollCell = document.createElement("td");
+                    rollCell.textContent = student.rollNo;
+                    row.appendChild(rollCell);
+
+                    const nameCell = document.createElement("td");
+                    nameCell.textContent = student.name;
+                    row.appendChild(nameCell);
+
+                    const savedRecord = records.find(
+                        record => record.rollNo === student.rollNo
+                    );
+
+                    for (let period = 0; period < 7; period++) {
+                        const cell = document.createElement("td");
+                        const select = document.createElement("select");
+
+                        select.className = "period";
+
+                        const options = [
+                            { value: "", label: "Not Marked" },
+                            { value: "Present", label: "Present" },
+                            { value: "Absent", label: "Absent" }
+                        ];
+
+                        options.forEach(item => {
+                            const option = document.createElement("option");
+                            option.value = item.value;
+                            option.textContent = item.label;
+                            select.appendChild(option);
+                        });
+
+                        select.value = savedRecord
+                            ? savedRecord.periods[period]
+                            : "";
+
+                        cell.appendChild(select);
+                        row.appendChild(cell);
+                    }
+
+                    attendanceBody.appendChild(row);
+                });
+
+                message.textContent = students.length
+                    ? "Students loaded. Mark attendance and click Save Attendance."
+                    : "No students found. Add students first.";
+
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        }
+
+        function markAll(status) {
+            document.querySelectorAll(".period").forEach(select => {
+                select.value = status;
+            });
+
+            message.textContent =
+                "Attendance marked " + status + ". Click Save Attendance.";
+        }
+
+        document.getElementById("presentAll").addEventListener(
+            "click", () => markAll("Present")
+        );
+
+        document.getElementById("absentAll").addEventListener(
+            "click", () => markAll("Absent")
+        );
+
+        document.getElementById("loadButton").addEventListener(
+            "click", loadAttendance
+        );
+
+        document.getElementById("saveButton").addEventListener(
+            "click", async () => {
+                const date = dateInput.value;
+
+                if (!date) {
+                    message.textContent = "Please select a date.";
+                    return;
+                }
+
+                const rows = [
+                    ...attendanceBody.querySelectorAll("tr")
+                ];
+
+                if (rows.length === 0) {
+                    message.textContent =
+                        "No students available to save.";
+                    return;
+                }
+
+                const records = rows.map(row => ({
+                    rollNo: row.cells[0].textContent,
+                    periods: [
+                        ...row.querySelectorAll("select")
+                    ].map(select => select.value)
+                }));
+
+                if (records.some(record =>
+                    record.periods.length !== 7 ||
+                    record.periods.some(status => !status)
+                )) {
+                    message.textContent =
+                        "Please mark all seven periods for every student.";
+                    return;
+                }
+
+                try {
+                    const response = await fetch("/api/attendance", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ date, records })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(
+                            result.error || "Unable to save attendance."
+                        );
+                    }
+
+                    message.textContent = result.message;
+
+                } catch (error) {
+                    message.textContent =
+                        "Error: " + error.message;
+                }
+            }
+        );
+
+        dateInput.addEventListener("change", loadAttendance);
+
+        loadAttendance();
+    </script>
+</body>
+</html>

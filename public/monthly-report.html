@@ -1,0 +1,254 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Attendance Report</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            padding: 25px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+        }
+
+        h1 { color: #1e3a8a; }
+
+        input, button {
+            padding: 10px;
+            margin: 5px;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .table-wrapper { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #dbeafe;
+            color: #1e3a8a;
+        }
+
+        .low { color: #dc2626; font-weight: bold; }
+        .good { color: #15803d; font-weight: bold; }
+
+        #message { font-weight: bold; }
+
+        @media print {
+            button, .back-link { display: none; }
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; }
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <h1>Monthly Attendance Report</h1>
+    <p>View attendance summaries for every registered student.</p>
+
+    <label for="month"><strong>Select Month:</strong></label>
+    <input type="month" id="month">
+
+    <button id="generateButton">Generate Report</button>
+    <button id="csvButton">Export CSV</button>
+    <button id="printButton">Print Report</button>
+
+    <p id="message"></p>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Roll Number</th>
+                    <th>Student Name</th>
+                    <th>Department</th>
+                    <th>Present Periods</th>
+                    <th>Absent Periods</th>
+                    <th>Total Marked</th>
+                    <th>Attendance %</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="reportBody"></tbody>
+        </table>
+    </div>
+
+    <p>
+        <a class="back-link" href="/">Student Management</a> |
+        <a class="back-link" href="/attendance.html">Daily Attendance</a>
+    </p>
+</div>
+
+<script>
+    const monthInput = document.getElementById('month');
+    const reportBody = document.getElementById('reportBody');
+    const message = document.getElementById('message');
+
+    const today = new Date();
+
+    monthInput.value = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0')
+    ].join('-');
+
+    let currentReport = [];
+
+    async function generateReport() {
+        message.textContent = 'Generating report...';
+        reportBody.replaceChildren();
+        currentReport = [];
+
+        try {
+            if (!monthInput.value) {
+                throw new Error('Please select a month.');
+            }
+
+            const response = await fetch(
+                '/api/monthly-report?month=' +
+                encodeURIComponent(monthInput.value)
+            );
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Could not generate report.');
+            }
+
+            currentReport = result;
+
+            result.forEach(student => {
+                const row = document.createElement('tr');
+
+                const values = [
+                    student.rollNo,
+                    student.name,
+                    student.department,
+                    student.present,
+                    student.absent,
+                    student.total,
+                    student.percentage.toFixed(2) + '%',
+                    student.total === 0
+                        ? 'No Data'
+                        : student.lowAttendance
+                            ? 'Below 75%'
+                            : 'Satisfactory'
+                ];
+
+                values.forEach((value, index) => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+
+                    if (index === 7 && student.total > 0) {
+                        cell.className = student.lowAttendance
+                            ? 'low'
+                            : 'good';
+                    }
+
+                    row.appendChild(cell);
+                });
+
+                reportBody.appendChild(row);
+            });
+
+            message.textContent = result.length
+                ? 'Report generated successfully for ' + monthInput.value
+                : 'No students registered yet.';
+
+        } catch (error) {
+            message.textContent = error.message;
+        }
+    }
+
+    document.getElementById('generateButton').addEventListener(
+        'click', generateReport
+    );
+
+    monthInput.addEventListener('change', generateReport);
+
+    document.getElementById('csvButton').addEventListener(
+        'click', () => {
+            if (currentReport.length === 0) {
+                message.textContent = 'Generate a report before exporting.';
+                return;
+            }
+
+            const headers = [
+                'Roll Number', 'Student Name', 'Department',
+                'Present Periods', 'Absent Periods',
+                'Total Marked', 'Attendance Percentage', 'Status'
+            ];
+
+            const escapeCSV = value =>
+                '"' + String(value).replace(/"/g, '""') + '"';
+
+            const rows = currentReport.map(student => [
+                student.rollNo,
+                student.name,
+                student.department,
+                student.present,
+                student.absent,
+                student.total,
+                student.percentage.toFixed(2) + '%',
+                student.total === 0
+                    ? 'No Data'
+                    : student.lowAttendance
+                        ? 'Below 75%'
+                        : 'Satisfactory'
+            ]);
+
+            const csv = [headers, ...rows]
+                .map(row => row.map(escapeCSV).join(','))
+                .join('\r\n');
+
+            const blob = new Blob(
+                ['\uFEFF' + csv],
+                { type: 'text/csv;charset=utf-8;' }
+            );
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.download = 'attendance-' + monthInput.value + '.csv';
+            link.click();
+
+            URL.revokeObjectURL(url);
+            message.textContent = 'CSV export started.';
+        }
+    );
+
+    document.getElementById('printButton').addEventListener(
+        'click', () => window.print()
+    );
+
+    generateReport();
+</script>
+</body>
+</html>
